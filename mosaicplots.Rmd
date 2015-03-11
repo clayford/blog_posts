@@ -1,0 +1,142 @@
+---
+title: "Understanding Mosiac Plots in R"
+author: "Clay Ford"
+date: "Wednesday, March 11, 2015"
+output: html_document
+---
+
+Mosaic plots provide a way to visualize contingency tables. However they're not as intuitive as, say, a scatter plot. It's hard to mentally map a contingency table of raw counts to what you're seeing in a mosiac plot. Let's demonstrate.
+
+Here I use data from Example 8.6-3 of *Probability and Statistical Inference* (Hogg & Tanis, 2006). These data are a random sample of 400 University of Iowa undergraduate students. The students were classified according to gender and the college in which they were enrolled. 
+
+
+```{r}
+M <- matrix(data = c(21,14,16,4,145,175,2,13,6,4),
+            ncol=5, 
+            dimnames = list(Gender=c("Male","Female"),
+                            College= c("Business","Engineering","Liberal Arts","Nursing","Pharmacy")))
+
+M
+```
+
+To create a basic mosaic plot in R, you use the `mosaicplot` function with a contingency table as the first argument. This can be a `table` or `matrix` object. I've also added a title to the graph and used the `las` argument to make the axis labels horizontal.
+
+
+```{r, echo=FALSE}
+mosaicplot(M, main = "Undergrads at Univ of Iowa", las=1)
+
+```
+
+The main feature that likely jumps out to you is the lack of numbers. We just see rectangles stacked on one another. If we compare the mosaic plot to the table of counts, the size of the boxes seem related to the counts in the table. Indeed they are, but how? Another feature you may notice is that the widths of the rectangles do not vary but the heights do. What's up with that? 
+
+By default, the `mosaicplot` function recursively calculates marginal proportions starting with the rows. In our example, we start with gender:
+
+```{r}
+apply(M, 1, function(x)sum(x)/sum(M))
+
+```
+
+That simply says 0.475 of our sample is male, and 0.525 is female. **These are the widths of the rectangles**.
+
+Now within gender, calculate the proportion belonging to each college:
+
+```{r}
+prop.table(M, margin = 1)
+```
+
+Among males about 11% are enrolled in the Business college versus only 6% among females. **These are the heights of our rectangles**.
+
+And that's what mosaic plots attempt to visualize: recursive proportions of membership within a **n**-dimension table. The mosaicplot documentation uses an example with 3 dimensions:
+
+```{r}
+mosaicplot(Titanic, main = "Survival on the Titanic")
+```
+
+
+
+# recreate mosaic plot "by hand"
+# This is what it's visualizing:
+
+# The width of the blocks are based on
+margin.table(M,margin = 1)/margin.table(M)
+
+# The height of the blocks are based on
+(pt <- prop.table(M,margin = 1))
+
+
+widths <- cumsum(c(0, margin.table(M,margin = 1)/margin.table(M)))
+
+heightsM <- cumsum(c(0,pt[1,]))
+heightsF <- cumsum(c(0,pt[2,]))
+
+# example of using rect()
+help(rect)
+plot(c(0,1), c(0, 1), type = "n", xlab = "", ylab = "", axes = F)
+rect(xleft = 0,ybottom = 0,xright = 0.5,ytop = 0.5,col = "grey")
+
+# how to use rect to create boxes for mosaicplot
+# Need to reverse the y axis
+plot(x=c(0,1), y=c(0,1), xlim=c(0,1), ylim=c(1,0),
+     type = "n", xlab = "", ylab = "")
+# Male Business: 0, 0.011, 0.475, 0
+rect(0, 0.1105263, 0.475,0) 
+# Male Eng: 0, 0.19, 0.475, 0.11
+rect(0, 0.1947368, 0.475, 0.1105263) 
+# Male LA: 0, 0.0857, 0.475, 0.06
+rect(0, 0.9578947, 0.475, 0.1947368) 
+# Male Nursing: 0, 0.9684211, 0.475, 0.9578947
+rect(0, 0.9684211, 0.475, 0.9578947) 
+# Male Pharmacy: 0, 1, 0.475, 0.9578947
+rect(0, 1, 0.475, 0.9684211) 
+
+
+# see that pattern?
+plot(x=c(0,1), y=c(0,1), xlim=c(0,1), ylim=c(1,0),
+     type = "n", xlab = "", ylab = "", frame.plot=F)
+# male rectangles
+rect(xleft = widths[1], ybottom = heightsM[-1], xright = widths[2], heightsM[-6], col=gray(0:5 / 5))
+# female rectangles
+rect(xleft = widths[2], ybottom = heightsF[-1], xright = widths[3], heightsF[-6], col=gray(0:5 / 5))
+
+# add space around rectangles (0.1)
+# need to make plot a little bigger (add 0.5)
+plot(x=c(0,1.5), y=c(0,1.5), xlim=c(0,1.5), ylim=c(1.5,0),
+     type = "n", xlab = "", ylab = "")
+# Male Business: 0, 0.011, 0.475, 0
+rect(0, 0.1105263, 0.475,0) 
+# Male Eng: 0, 0.19, 0.475, 0.11
+rect(0, 0.1947368+0.1, 0.475, 0.1105263+0.1) 
+# Male LA: 0, 0.0857, 0.475, 0.06
+rect(0, 0.9578947+0.2, 0.475, 0.1947368+0.2) 
+# Male Nursing: 0, 0.9684211, 0.475, 0.9578947
+rect(0, 0.9684211+0.3, 0.475, 0.9578947+0.3) 
+# Male Pharmacy: 0, 1, 0.475, 0.9578947
+rect(0, 1+0.4, 0.475, 0.9684211+0.4) 
+
+
+# male rectangles
+rect(xleft = widths[1], ybottom = heightsM[-1], xright = widths[2], heightsM[-6])
+# female rectangles
+rect(xleft = widths[2], ybottom = heightsF[-1], xright = widths[3], heightsF[-6])
+
+
+
+M.out <- chisq.test(M)
+M.out$expected
+
+mosaicplot(M, shade = T, las=1)
+
+
+mosaicplot(~ gear + carb, data = mtcars, color = TRUE, las = 1)
+# color recycling
+mosaicplot(~ gear + carb, data = mtcars, color = 2:3, las = 1)
+
+
+```{r}
+summary(cars)
+```
+
+You can also embed plots, for example:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
