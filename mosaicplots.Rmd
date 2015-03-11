@@ -44,99 +44,59 @@ Now within gender, calculate the proportion belonging to each college:
 prop.table(M, margin = 1)
 ```
 
-Among males about 11% are enrolled in the Business college versus only 6% among females. **These are the heights of our rectangles**.
+Among males about 11% are enrolled in the Business college versus only 6% among females. **These are the heights of our rectangles**. 
 
-And that's what mosaic plots attempt to visualize: recursive proportions of membership within a **n**-dimension table. The mosaicplot documentation uses an example with 3 dimensions:
+The scale of the plot is basically 0 to 1 on the x and y axes. So the first rectangle we see in the Male column for the Business college is 0.475 wide and about 0.11 tall. In the Female column, the rectangle for the Business college is 0.525 wide and about 0.07 tall. Visually we see there are more Females than Males in our sample because the Female rectangles are *wider*. Within the gender columns, we see Males have a higher proportion in the Business school than do Females because their rectangle is *taller*.
+
+That's what mosaic plots attempt to visualize: recursive proportions of membership within a **n**-dimension table. 
+
+Let's try it on a table with 3 dimensions. Below we'll use a data set that comes with R called UCBAdmissions. This data set contains "aggregate data on applicants to graduate school at Berkeley for the six largest departments in 1973 classified by admission and sex." This is a rather famous data set used for illustrating Simpson's Paradox.
 
 ```{r}
-mosaicplot(Titanic, main = "Survival on the Titanic")
+UCBAdmissions
+mosaicplot(UCBAdmissions, main="Student Admissions at UC Berkeley")
 ```
 
+How do we read this? Start with the **Admit** rows in our table of counts. That dictates the *width* of the two columns in the mosaic plot. Visually we see more people were rejected than admitted because the Rejected column of rectangles is wider. Next, go to the columns of the table: **Gender**. We see that of the people admitted, a much higher proportion were Male because of the *height* of the rectangles. Of the people rejected, it appears to be pretty even. Finally we move to the 3rd dimension: **Dept**. The height of these rectangles (or width, depending on how you look at it) is determined by proportion of Gender within Admit. So starting with the Admit column, compare the Dept rectangles between Male and Female. We see that a higher proportion of admitted Males were for Depts A and B compared to the proportion of admitted Females for the same Depts. On the other hand we see that a higher proportion of admitted Females were for Depts C - F compared to the proportion of admitted Males. 
 
+Were Depts A and B discriminating against Females? You might think so if you stop there. But look at the Rejected column. We see that of the rejected Males and Females, a much higher proportion of the Males were rejected for Depts A and B than Females. The widths of the Male rectangles are wider than their Female counterparts. Likewise for Depts C - F. It's pretty clear that of the rejected Males and Females, a higher proportion of the Females were rejected for Depts C - F than Males. Again the widths of the Female rectangles are wider than their Male counterparts.
 
-# recreate mosaic plot "by hand"
-# This is what it's visualizing:
+That's where Simpson's Paradox comes into play. If we disregard the within Dept counts, we see what appears to be Female discimination:
 
-# The width of the blocks are based on
-margin.table(M,margin = 1)/margin.table(M)
+```{r}
+# collapse count over departments and create mosaic plot
+margin.table(UCBAdmissions, margin = c(1, 2))
+mosaicplot(margin.table(UCBAdmissions, margin = c(1, 2)),
+           main = "Student admissions at UC Berkeley")
 
-# The height of the blocks are based on
-(pt <- prop.table(M,margin = 1))
+```
 
+           
+To really understand what mosaic plots are showing, it helps to create one "by hand". There's no real point in doing so other than personal edification. But let's be edified. We'll work with our Univ of Iowa data.
 
-widths <- cumsum(c(0, margin.table(M,margin = 1)/margin.table(M)))
+We know our plot needs x and y axes with a scale of 0 to 1. We also know we need to draw rectangles. Fortunately R has a `rect` function that allows you to create rectangles. You tell it the coordinate points for the bottom left and upper right corners of your rectangle and it does the rest. 
 
+In order to translate the *width* and *height* of rectangles to locations within the plot, we'll need to use the `cumsum` function. I need to draw rectangles relative to other rectangles. Hence the position of a rectangle corner will need to take into account other rectangles drawn above or beside it. The `cumsum` function allows us to do that.
+
+Here's my rough stab at a manual mosaic plot:
+
+```{r}
+# widths
+widths <- cumsum(c(0, apply(M, 1, function(x)sum(x)/sum(M))))
+# heights
+pt <- prop.table(M,margin = 1)
 heightsM <- cumsum(c(0,pt[1,]))
 heightsF <- cumsum(c(0,pt[2,]))
-
-# example of using rect()
-help(rect)
-plot(c(0,1), c(0, 1), type = "n", xlab = "", ylab = "", axes = F)
-rect(xleft = 0,ybottom = 0,xright = 0.5,ytop = 0.5,col = "grey")
-
-# how to use rect to create boxes for mosaicplot
 # Need to reverse the y axis
 plot(x=c(0,1), y=c(0,1), xlim=c(0,1), ylim=c(1,0),
      type = "n", xlab = "", ylab = "")
-# Male Business: 0, 0.011, 0.475, 0
-rect(0, 0.1105263, 0.475,0) 
-# Male Eng: 0, 0.19, 0.475, 0.11
-rect(0, 0.1947368, 0.475, 0.1105263) 
-# Male LA: 0, 0.0857, 0.475, 0.06
-rect(0, 0.9578947, 0.475, 0.1947368) 
-# Male Nursing: 0, 0.9684211, 0.475, 0.9578947
-rect(0, 0.9684211, 0.475, 0.9578947) 
-# Male Pharmacy: 0, 1, 0.475, 0.9578947
-rect(0, 1, 0.475, 0.9684211) 
-
-
-# see that pattern?
-plot(x=c(0,1), y=c(0,1), xlim=c(0,1), ylim=c(1,0),
-     type = "n", xlab = "", ylab = "", frame.plot=F)
 # male rectangles
-rect(xleft = widths[1], ybottom = heightsM[-1], xright = widths[2], heightsM[-6], col=gray(0:5 / 5))
+rect(xleft = widths[1], ybottom = heightsM[-1], 
+     xright = widths[2], ytop = heightsM[-6], col=gray(seq(3,12,2) / 15))
 # female rectangles
-rect(xleft = widths[2], ybottom = heightsF[-1], xright = widths[3], heightsF[-6], col=gray(0:5 / 5))
+rect(xleft = widths[2], ybottom = heightsF[-1], 
+     xright = widths[3], ytop = heightsF[-6], col=gray(seq(3,12,2) / 15))
 
-# add space around rectangles (0.1)
-# need to make plot a little bigger (add 0.5)
-plot(x=c(0,1.5), y=c(0,1.5), xlim=c(0,1.5), ylim=c(1.5,0),
-     type = "n", xlab = "", ylab = "")
-# Male Business: 0, 0.011, 0.475, 0
-rect(0, 0.1105263, 0.475,0) 
-# Male Eng: 0, 0.19, 0.475, 0.11
-rect(0, 0.1947368+0.1, 0.475, 0.1105263+0.1) 
-# Male LA: 0, 0.0857, 0.475, 0.06
-rect(0, 0.9578947+0.2, 0.475, 0.1947368+0.2) 
-# Male Nursing: 0, 0.9684211, 0.475, 0.9578947
-rect(0, 0.9684211+0.3, 0.475, 0.9578947+0.3) 
-# Male Pharmacy: 0, 1, 0.475, 0.9578947
-rect(0, 1+0.4, 0.475, 0.9684211+0.4) 
-
-
-# male rectangles
-rect(xleft = widths[1], ybottom = heightsM[-1], xright = widths[2], heightsM[-6])
-# female rectangles
-rect(xleft = widths[2], ybottom = heightsF[-1], xright = widths[3], heightsF[-6])
-
-
-
-M.out <- chisq.test(M)
-M.out$expected
-
-mosaicplot(M, shade = T, las=1)
-
-
-mosaicplot(~ gear + carb, data = mtcars, color = TRUE, las = 1)
-# color recycling
-mosaicplot(~ gear + carb, data = mtcars, color = 2:3, las = 1)
-
-
-```{r}
-summary(cars)
 ```
 
-You can also embed plots, for example:
-
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+If you compare that to the original `mosaicplot()` output above that I drew at the beginning of this post you can see we've basically drawn the same thing without spacing around the rectangles. That's why I used the `gray` function to fill in the boxes with distinguishing shades. Again, nowhere near as nice as what the `mosaicplot` give us, but a good way to understand what the `mosaicplot` function is doing.
